@@ -1,7 +1,7 @@
 import os, cv2
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
-from my_image_processing import MyProcess2, DEFAULT_IMAGES_DIR, _binary
+from my_image_processing import MyProcess2, DEFAULT_IMAGES_DIR
 
 APP_TITLE = "DIP Lab — Image Studio"
 
@@ -20,12 +20,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Buttons
         self.btnOpen = QtWidgets.QPushButton("Load Image")
         self.btnRun = QtWidgets.QPushButton("Apply")
-        self.btnBinary = QtWidgets.QPushButton("Make Binary")  # New button
         self.btnSave = QtWidgets.QPushButton("Save Result")
         hl = QtWidgets.QHBoxLayout()
         hl.addWidget(self.btnOpen)
         hl.addWidget(self.btnRun)
-        hl.addWidget(self.btnBinary)  # Add binary button
         hl.addWidget(self.btnSave)
         layout.addLayout(hl)
         
@@ -42,7 +40,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect signals
         self.btnOpen.clicked.connect(self.on_open)
         self.btnRun.clicked.connect(self.on_apply)
-        self.btnBinary.clicked.connect(self.on_binary)  # Connect binary button
         self.btnSave.clicked.connect(self.on_save)
     
     def on_open(self):
@@ -78,16 +75,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lblAfter.setPixmap(
             QtGui.QPixmap.fromImage(qimg).scaled(400, 400, QtCore.Qt.KeepAspectRatio))
     
-    def on_binary(self):
-        if self._before is None:
-            return
-            
-        self._after = _binary(self._before)
-        h, w, ch = self._after.shape
-        qimg = QtGui.QImage(self._after.data, w, h, ch*w, QtGui.QImage.Format_RGB888)
-        self.lblAfter.setPixmap(
-            QtGui.QPixmap.fromImage(qimg).scaled(400, 400, QtCore.Qt.KeepAspectRatio))
-
     def on_save(self):
         if self._after is None:
             return

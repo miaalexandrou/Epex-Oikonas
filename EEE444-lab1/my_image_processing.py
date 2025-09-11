@@ -43,17 +43,6 @@ def _rotate_no_crop(img, angle_deg):
 def _negative(img): 
     return cv2.bitwise_not(img)
 
-def _binary(img, threshold=127):
-    # Convert to grayscale if the image is in color
-    if len(img.shape) == 3:
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    else:
-        gray = img
-    # Apply binary thresholding
-    _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    # Convert back to RGB to maintain compatibility with other functions
-    return cv2.cvtColor(binary, cv2.COLOR_GRAY2RGB)
-
 def MyProcess(image_path, new_size, angle_deg, show=True, out_path=None):
     bgr = cv2.imread(image_path)
     img = _ensure_rgb(bgr)
