@@ -31,7 +31,7 @@ QSlider::handle:horizontal { background: #f1c57a; width: 14px; border-radius: 7p
 
 # -------------------------- Helpers --------------------------
 def np_rgb_to_qpixmap(img_rgb: np.ndarray, target_size: QtCore.QSize) -> QtGui.QPixmap:
-    """Μετατροπή RGB ndarray -> QPixmap, scaled με αναλογία."""
+    """Convert RGB ndarray -> QPixmap, scaled with aspect ratio."""
     h, w, ch = img_rgb.shape
     bytes_per_line = ch * w
     qimg = QtGui.QImage(img_rgb.data, w, h, bytes_per_line, QtGui.QImage.Format_RGB888)
@@ -118,9 +118,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resizeH.setPlaceholderText("ύψος (ή κενό)")
         self.smallDim = QtWidgets.QLineEdit()
         self.smallDim.setPlaceholderText("μικρή διάσταση (int)")
-        self.angle = QtWidgets.QLineEdit("35")
+        self.angle = QtWidgets.QLineEdit("0")
         self.chkNegative = QtWidgets.QCheckBox("Negative")
         self.chkBinary = QtWidgets.QCheckBox("Binary") 
+
+        # Binary slider + label
+        self.binaryThresholdSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.binaryThresholdSlider.setRange(0, 255)
+        self.binaryThresholdSlider.setValue(127)
+        self.binaryThresholdSlider.setFixedWidth(120)
+        self.binaryThresholdLabel = QtWidgets.QLabel("127")
+        self.binaryThresholdLabel.setFixedWidth(30)
+        self.binaryThresholdSlider.valueChanged.connect(
+            lambda v: self.binaryThresholdLabel.setText(str(v))
+        )
+
+        binaryRow = QtWidgets.QHBoxLayout()
+        binaryRow.addWidget(self.chkBinary)
+        binaryRow.addWidget(self.binaryThresholdSlider)
+        binaryRow.addWidget(self.binaryThresholdLabel)
+
         form.addRow("images_dir:", self.imagesDir)
         form.addRow("subject_index:", self.subjectSpin)
         form.addRow("image path:", self.imagePath)
@@ -130,7 +147,7 @@ class MainWindow(QtWidgets.QMainWindow):
         form.addRow("resize small-dim:", self.smallDim)
         form.addRow("angle (deg):", self.angle)
         form.addRow("", self.chkNegative)
-        form.addRow("", self.chkBinary)  
+        form.addRow("", binaryRow)
         side.addLayout(form)
 
         # action buttons
@@ -198,7 +215,7 @@ class MainWindow(QtWidgets.QMainWindow):
             " – width/height: μπορείτε να αφήσετε ένα κενό για διατήρηση αναλογιών.\n"
             " – angle: μοίρες περιστροφής (αριστερόστροφα).\n"
             " – Negative: αντιστρέφει τα χρώματα.\n"
-            " – Binary: μετατρέπει την εικόνα σε δυαδική (threshold=127)."
+            " – Binary: μετατρέπει την εικόνα σε δυαδική (threshold=slider)."
         )
         info.setWordWrap(True)
         lay.addWidget(info)
@@ -246,7 +263,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"Δεν βρέθηκε αρχείο subject{idx} με επεκτάσεις {exts} στον φάκελο:\n{images_dir}"
             )
             return
-        self.imagePath.clear()  # επιβάλει χρήση subject_index στη MyProcess2
+        self.imagePath.clear()
         self._load_to_left(found_path)
 
     def _load_to_left(self, path: str):
@@ -292,7 +309,8 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             # Apply binary conversion if selected
             if self.chkBinary.isChecked():
-                out_rgb = convert_to_binary(out_rgb)
+                threshold = self.binaryThresholdSlider.value()
+                out_rgb = convert_to_binary(out_rgb, threshold=threshold)
             self._after_rgb = out_rgb
             pix = np_rgb_to_qpixmap(out_rgb, self.lblAfter.size())
             self.lblAfter.setPixmap(pix)
