@@ -5,6 +5,7 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from my_image_processing import MyProcess2
 from binary import convert_to_binary
 from zoom import ZoomHandler
+from morphology import process_morphology_simple, apply_morphology_to_gui, on_apply_morphology_gui
 
 APP_TITLE = "DIP Lab — Image Studio"
 
@@ -18,7 +19,13 @@ QTabWidget::pane { border: 1px solid #2b2d31; top: -0.5em; background: #1f2023; 
 QTabBar::tab { background: #2b2d31; border: 1px solid #2b2d31; padding: 8px 16px; margin-right: 2px; border-top-left-radius: 6px; border-top-right-radius: 6px; }
 QTabBar::tab:selected { background: #3a3c42; }
 QTabBar::tab:hover { background: #34363b; }
-QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit { background: #1c1d21; border: 1px solid #3a3c42; padding: 6px; border-radius: 6px; }
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit { background: #1c1d21; border: 1px solid #3a3c42; padding: 6px; border-radius: 6px; color: #E6E6E6; }
+QComboBox { min-height: 20px; padding: 8px; }
+QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 20px; border-left-width: 1px; border-left-color: #3a3c42; border-left-style: solid; border-top-right-radius: 6px; border-bottom-right-radius: 6px; background: #2b2d31; }
+QComboBox::down-arrow { image: none; border: 2px solid #E6E6E6; width: 6px; height: 6px; border-top: none; border-right: none; transform: rotate(45deg); margin: 2px; }
+QComboBox QAbstractItemView { background: #1c1d21; border: 1px solid #3a3c42; selection-background-color: #3a3c42; selection-color: #E6E6E6; color: #E6E6E6; outline: none; }
+QComboBox QAbstractItemView::item { padding: 8px; border: none; }
+QComboBox QAbstractItemView::item:selected { background: #3a3c42; color: #E6E6E6; }
 QCheckBox::indicator { width: 16px; height: 16px; }
 QPushButton { background-color: #f1c57a; color: #2b2d31; border: 0px; padding: 8px 14px; border-radius: 8px; font-weight: 600; }
 QPushButton:hover { background-color: #ffd28e; }
@@ -190,6 +197,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rightTabs = QtWidgets.QTabWidget()
         self.rightTabs.addTab(self._build_operations_tab(), "Operations")
         self.rightTabs.addTab(self._build_info_tab(), "Info")
+        self.rightTabs.addTab(self._build_morphology_tab(), "Morphology")
         splitter.addWidget(self.rightTabs)
 
         # initial sizes
@@ -255,6 +263,74 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         lbl.setWordWrap(True)
         lay.addWidget(lbl)
+        lay.addStretch(1)
+        return w
+
+    def _build_morphology_tab(self):
+        w = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(w)
+        lay.setContentsMargins(10, 10, 10, 10)
+        
+        # Info section
+        info = QtWidgets.QLabel(
+            "• Μορφολογικές Λειτουργίες:\n"
+            "Επεξεργασία σχημάτων σε δυαδικές εικόνες."
+        )
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        
+        # Controls form
+        form = QtWidgets.QFormLayout()
+        form.setLabelAlignment(QtCore.Qt.AlignRight)
+        
+        # Threshold controls
+        self.morphThresholdSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.morphThresholdSlider.setRange(0, 255)
+        self.morphThresholdSlider.setValue(127)
+        self.morphThresholdSlider.setFixedWidth(120)
+        self.morphThresholdLabel = QtWidgets.QLabel("127")
+        self.morphThresholdLabel.setFixedWidth(30)
+        self.morphThresholdSlider.valueChanged.connect(
+            lambda v: self.morphThresholdLabel.setText(str(v))
+        )
+        
+        thresholdRow = QtWidgets.QHBoxLayout()
+        thresholdRow.addWidget(self.morphThresholdSlider)
+        thresholdRow.addWidget(self.morphThresholdLabel)
+        
+        # Kernel Shape dropdown
+        self.morphKernelShape = QtWidgets.QComboBox()
+        self.morphKernelShape.addItems(["square", "diamond", "cross"])
+        self.morphKernelShape.setMinimumHeight(30)
+        self.morphKernelShape.setCurrentIndex(0)
+        
+        # Kernel Size dropdown
+        self.morphKernelSize = QtWidgets.QComboBox()
+        self.morphKernelSize.addItems(["3", "5", "7", "9", "11", "13", "15"])
+        self.morphKernelSize.setMinimumHeight(30)
+        self.morphKernelSize.setCurrentText("5")
+        
+        # Operation dropdown
+        self.morphOperation = QtWidgets.QComboBox()
+        self.morphOperation.addItems([
+            "not", "and", "or", "xor", "dilate", "erode", "open", "close"
+        ])
+        self.morphOperation.setMinimumHeight(30)
+        self.morphOperation.setCurrentIndex(0)
+        
+        # Add to form
+        form.addRow("Threshold:", thresholdRow)
+        form.addRow("Kernel Shape:", self.morphKernelShape)
+        form.addRow("Kernel Size:", self.morphKernelSize)
+        form.addRow("Operation:", self.morphOperation)
+        
+        lay.addLayout(form)
+        
+        # Apply button
+        self.btnApplyMorphology = QtWidgets.QPushButton("Apply Morphology")
+        self.btnApplyMorphology.clicked.connect(self.on_apply_morphology)
+        lay.addWidget(self.btnApplyMorphology)
+        
         lay.addStretch(1)
         return w
 
@@ -357,6 +433,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoomValueLabel.setText(f"{value}%")
         self.zoomHandlerBefore.set_zoom(value)
         self.zoomHandlerAfter.set_zoom(value)
+
+    def on_apply_morphology(self):
+        """Apply morphological operations to the current image."""
+        # Delegate to the morphology module
+        on_apply_morphology_gui(self)
 
 # -------------------------- Run App --------------------------
 if __name__ == "__main__":
