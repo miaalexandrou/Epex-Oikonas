@@ -5,7 +5,7 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from my_image_processing import MyProcess2
 from binary import convert_to_binary
 from zoom import ZoomHandler
-from morphology import process_morphology_simple, apply_morphology_to_gui, on_apply_morphology_gui
+from morphology import on_apply_morphology_gui
 
 APP_TITLE = "DIP Lab — Image Studio"
 
@@ -20,12 +20,16 @@ QTabBar::tab { background: #2b2d31; border: 1px solid #2b2d31; padding: 8px 16px
 QTabBar::tab:selected { background: #3a3c42; }
 QTabBar::tab:hover { background: #34363b; }
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit { background: #1c1d21; border: 1px solid #3a3c42; padding: 6px; border-radius: 6px; color: #E6E6E6; }
-QComboBox { min-height: 20px; padding: 8px; }
-QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 20px; border-left-width: 1px; border-left-color: #3a3c42; border-left-style: solid; border-top-right-radius: 6px; border-bottom-right-radius: 6px; background: #2b2d31; }
-QComboBox::down-arrow { image: none; border: 2px solid #E6E6E6; width: 6px; height: 6px; border-top: none; border-right: none; transform: rotate(45deg); margin: 2px; }
-QComboBox QAbstractItemView { background: #1c1d21; border: 1px solid #3a3c42; selection-background-color: #3a3c42; selection-color: #E6E6E6; color: #E6E6E6; outline: none; }
-QComboBox QAbstractItemView::item { padding: 8px; border: none; }
-QComboBox QAbstractItemView::item:selected { background: #3a3c42; color: #E6E6E6; }
+QComboBox { min-height: 24px; padding: 6px 24px 6px 8px; font-size: 10.5pt; }
+QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 24px; border-left-width: 1px; border-left-color: #3a3c42; border-left-style: solid; border-top-right-radius: 6px; border-bottom-right-radius: 6px; background: #2b2d31; }
+QComboBox::down-arrow { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #E6E6E6; margin: 0px; }
+QComboBox:hover { border: 1px solid #44474e; background: #2b2d31; }
+QComboBox:focus { border: 1px solid #f1c57a; }
+QComboBox:on { border: 1px solid #f1c57a; }
+QComboBox QAbstractItemView { background: #1c1d21; border: 1px solid #3a3c42; selection-background-color: #f1c57a; selection-color: #2b2d31; color: #E6E6E6; outline: none; padding: 4px; }
+QComboBox QAbstractItemView::item { padding: 8px 12px; border: none; min-height: 20px; }
+QComboBox QAbstractItemView::item:selected { background: #f1c57a; color: #2b2d31; }
+QComboBox QAbstractItemView::item:hover { background: #44474e; color: #E6E6E6; }
 QCheckBox::indicator { width: 16px; height: 16px; }
 QPushButton { background-color: #f1c57a; color: #2b2d31; border: 0px; padding: 8px 14px; border-radius: 8px; font-weight: 600; }
 QPushButton:hover { background-color: #ffd28e; }
@@ -301,13 +305,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # Kernel Shape dropdown
         self.morphKernelShape = QtWidgets.QComboBox()
         self.morphKernelShape.addItems(["square", "diamond", "cross"])
-        self.morphKernelShape.setMinimumHeight(30)
+        self.morphKernelShape.setMinimumHeight(20)
+        self.morphKernelShape.setMinimumWidth(120)
         self.morphKernelShape.setCurrentIndex(0)
         
         # Kernel Size dropdown
         self.morphKernelSize = QtWidgets.QComboBox()
         self.morphKernelSize.addItems(["3", "5", "7", "9", "11", "13", "15"])
-        self.morphKernelSize.setMinimumHeight(30)
+        self.morphKernelSize.setMinimumHeight(20)
+        self.morphKernelSize.setMinimumWidth(120)
         self.morphKernelSize.setCurrentText("5")
         
         # Operation dropdown
@@ -315,7 +321,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.morphOperation.addItems([
             "not", "and", "or", "xor", "dilate", "erode", "open", "close"
         ])
-        self.morphOperation.setMinimumHeight(30)
+        self.morphOperation.setMinimumHeight(20)
+        self.morphOperation.setMinimumWidth(120)
         self.morphOperation.setCurrentIndex(0)
         
         # Add to form
