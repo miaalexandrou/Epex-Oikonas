@@ -4,6 +4,7 @@ import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
 from my_image_processing import MyProcess2
 from binary import convert_to_binary
+from zoom import ZoomHandler
 
 APP_TITLE = "DIP Lab — Image Studio"
 
@@ -194,12 +195,33 @@ class MainWindow(QtWidgets.QMainWindow):
         # initial sizes
         splitter.setSizes([320, 700, 300])
 
+        # ---- Zoom controls ----
+        zoomRow = QtWidgets.QHBoxLayout()
+        zoomLabel = QtWidgets.QLabel("Zoom:")
+        self.zoomSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.zoomSlider.setRange(10, 300)  
+        self.zoomSlider.setValue(100)
+        self.zoomSlider.setFixedWidth(120)   
+        self.zoomValueLabel = QtWidgets.QLabel("100%")
+        self.zoomValueLabel.setFixedWidth(40) 
+
+        zoomRow.addWidget(zoomLabel)
+        zoomRow.addWidget(self.zoomSlider)
+        zoomRow.addWidget(self.zoomValueLabel)
+        zoomRow.addStretch(1)  
+        root_layout.addLayout(zoomRow)
+
+        # Zoom Handlers
+        self.zoomHandlerBefore = ZoomHandler(self.lblBefore)
+        self.zoomHandlerAfter = ZoomHandler(self.lblAfter)
+
         # ---- Signals ----
         self.btnPick.clicked.connect(self.on_pick_image)
         self.btnOpen.clicked.connect(self.on_pick_image)
         self.btnLoadSubject.clicked.connect(self.on_load_subject)
         self.btnRun.clicked.connect(self.on_apply)
         self.btnSave.clicked.connect(self.on_save)
+        self.zoomSlider.valueChanged.connect(self.on_zoom_changed)
 
         # apply style
         self.setStyleSheet(DARK_QSS)
@@ -274,7 +296,7 @@ class MainWindow(QtWidgets.QMainWindow):
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         self._before_rgb = rgb
         pix = np_rgb_to_qpixmap(rgb, self.lblBefore.size())
-        self.lblBefore.setPixmap(pix)
+        self.zoomHandlerBefore.set_pixmap(pix)
         self.centerTabs.setCurrentWidget(self.tabOriginal)
 
     def _parse_resize(self):
@@ -313,7 +335,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 out_rgb = convert_to_binary(out_rgb, threshold=threshold)
             self._after_rgb = out_rgb
             pix = np_rgb_to_qpixmap(out_rgb, self.lblAfter.size())
-            self.lblAfter.setPixmap(pix)
+            self.zoomHandlerAfter.set_pixmap(pix)
             self.centerTabs.setCurrentWidget(self.tabProcessed)
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Σφάλμα", str(e))
@@ -331,6 +353,12 @@ class MainWindow(QtWidgets.QMainWindow):
         cv2.imwrite(path, bgr)
         QtWidgets.QMessageBox.information(self, "OK", f"Αποθηκεύτηκε: {path}")
 
+    def on_zoom_changed(self, value: int):
+        self.zoomValueLabel.setText(f"{value}%")
+        self.zoomHandlerBefore.set_zoom(value)
+        self.zoomHandlerAfter.set_zoom(value)
+
+# -------------------------- Run App --------------------------
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
