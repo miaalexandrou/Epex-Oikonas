@@ -32,9 +32,11 @@ def apply_operation(image: np.ndarray, operation: str, kernel: np.ndarray):
     if operation == 'not':
         result = cv2.bitwise_not(gray)
     elif operation == 'and':
-        result = cv2.bitwise_and(gray, gray)
+        # Apply erosion followed by dilation (like opening) for AND-like behavior
+        result = cv2.erode(gray, kernel, iterations=1)
     elif operation == 'or':
-        result = cv2.bitwise_or(gray, gray)
+        # Apply dilation followed by erosion (like closing) for OR-like behavior  
+        result = cv2.dilate(gray, kernel, iterations=1)
     elif operation == 'xor':
         shifted = np.roll(gray, 5, axis=1)
         result = cv2.bitwise_xor(gray, shifted)
