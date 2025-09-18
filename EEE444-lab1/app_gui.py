@@ -169,6 +169,11 @@ class MainWindow(QtWidgets.QMainWindow):
         btnRow.addWidget(self.btnLoadSubject)
         btnRow.addWidget(self.btnRun)
         side.addLayout(btnRow)
+        
+        # reset button
+        self.btnReset = QtWidgets.QPushButton("Reset to Original")
+        self.btnReset.setObjectName("Secondary")
+        side.addWidget(self.btnReset)
         splitter.addWidget(self.sidePanel)
 
         # ---- Center: Tabs with images ----
@@ -233,6 +238,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btnLoadSubject.clicked.connect(self.on_load_subject)
         self.btnRun.clicked.connect(self.on_apply)
         self.btnSave.clicked.connect(self.on_save)
+        self.btnReset.clicked.connect(self.on_reset)
         self.zoomSlider.valueChanged.connect(self.on_zoom_changed)
 
         # apply style
@@ -445,6 +451,28 @@ class MainWindow(QtWidgets.QMainWindow):
         """Apply morphological operations to the current image."""
         # Delegate to the morphology module
         on_apply_morphology_gui(self)
+
+    def on_reset(self):
+        """Reset the processed image back to the original image."""
+        if self._before_rgb is None:
+            return
+        
+        # Copy the original image to the processed view
+        self._after_rgb = self._before_rgb.copy()
+        pix = np_rgb_to_qpixmap(self._after_rgb, self.lblAfter.size())
+        self.zoomHandlerAfter.set_pixmap(pix)
+        
+        # Switch to the processed tab to show the reset image
+        self.centerTabs.setCurrentWidget(self.tabProcessed)
+        
+        # Optionally, reset all controls to default values
+        self.resizeW.clear()
+        self.resizeH.clear()
+        self.smallDim.clear()
+        self.angle.setText("0")
+        self.chkNegative.setChecked(False)
+        self.chkBinary.setChecked(False)
+        self.binaryThresholdSlider.setValue(127)
 
 # -------------------------- Run App --------------------------
 if __name__ == "__main__":
