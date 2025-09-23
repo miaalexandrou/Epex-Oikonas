@@ -6,6 +6,7 @@ from my_image_processing import MyProcess2
 from binary import convert_to_binary
 from zoom import ZoomHandler
 from morphology import on_apply_morphology_gui
+from histogram import show_histogram_gui
 
 APP_TITLE = "DIP Lab — Image Studio"
 
@@ -174,6 +175,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btnReset = QtWidgets.QPushButton("Reset to Original")
         self.btnReset.setObjectName("Secondary")
         side.addWidget(self.btnReset)
+        
+        # histogram button
+        self.btnHistogram = QtWidgets.QPushButton("Show Histogram")
+        self.btnHistogram.setObjectName("Secondary")
+        side.addWidget(self.btnHistogram)
         splitter.addWidget(self.sidePanel)
 
         # ---- Center: Tabs with images ----
@@ -239,6 +245,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btnRun.clicked.connect(self.on_apply)
         self.btnSave.clicked.connect(self.on_save)
         self.btnReset.clicked.connect(self.on_reset)
+        self.btnHistogram.clicked.connect(self.on_show_histogram)
         self.zoomSlider.valueChanged.connect(self.on_zoom_changed)
 
         # apply style
@@ -451,6 +458,11 @@ class MainWindow(QtWidgets.QMainWindow):
         """Apply morphological operations to the current image."""
         # Delegate to the morphology module
         on_apply_morphology_gui(self)
+    
+    def on_show_histogram(self):
+        """Show histogram for the current image."""
+        # Delegate to the histogram module
+        show_histogram_gui(self)
 
     def on_reset(self):
         """Reset the processed image back to the original image."""
