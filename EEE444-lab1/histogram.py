@@ -78,7 +78,7 @@ def calculate_stats(hist_data):
     return stats
 
 
-def plot_histogram(image, title="Image Histogram"):
+def plot_histogram(image, title="Image Histogram", threshold=128):
     """Create histogram plot for RGB or grayscale images."""
     hist_data = calculate_histogram(image)
     stats = calculate_stats(hist_data)
@@ -111,6 +111,9 @@ def plot_histogram(image, title="Image Histogram"):
     ax.set_xlim([0, 255])
     ax.set_facecolor('#f8f9fa')
     
+    # Add threshold line
+    ax.axvline(x=threshold, color='red', linewidth=2, linestyle='-', label=f'Threshold: {threshold}')
+    
     if stats_text:
         ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, verticalalignment='top',
                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
@@ -130,7 +133,7 @@ def show_histogram_gui(main_window):
         image_type = "Grayscale" if calculate_histogram(image)['type'] == 'gray' else "RGB"
         title = f"{'Processed' if main_window._after_rgb is not None else 'Original'} Image Histogram ({image_type})"
         
-        hist_widget = plot_histogram(image, title)
+        hist_widget = plot_histogram(image, title, threshold=128)
         hist_widget.show()
         
         if not hasattr(main_window, '_histogram_windows'):
