@@ -182,6 +182,7 @@ class MainWindow(QtWidgets.QMainWindow):
         side.addWidget(self.btnHistogram)
         splitter.addWidget(self.sidePanel)
 
+
         # ---- Center: Tabs with images ----
         self.centerTabs = QtWidgets.QTabWidget()
         self.tabOriginal = QtWidgets.QWidget()
