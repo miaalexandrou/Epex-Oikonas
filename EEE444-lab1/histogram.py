@@ -1,8 +1,119 @@
+import io
+import datetime
 import cv2
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PyQt5 import QtWidgets
+
+
+def _resize_and_pad_rgb(img_rgb, size=(600, 400), pad_color=(255, 255, 255)):
+    """Resize RGB image to fit into size while preserving aspect ratio and pad with pad_color.
+
+    Args:
+        img_rgb: HxWx3 uint8 RGB image (numpy).
+        size: (w, h) target box.
+        pad_color: RGB tuple.
+    Returns:
+        image of shape (h, w, 3) uint8 RGB.
+    """
+    if img_rgb is None:
+        return np.full((size[1], size[0], 3), pad_color, dtype=np.uint8)
+
+    h, w = img_rgb.shape[:2]
+    tgt_w, tgt_h = size
+    scale = min(tgt_w / w, tgt_h / h)
+    new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
+    resized = cv2.resize(img_rgb, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    # create background
+    bg = np.full((tgt_h, tgt_w, 3), pad_color, dtype=np.uint8)
+    # center
+    x = (tgt_w - new_w) // 2
+    y = (tgt_h - new_h) // 2
+    bg[y:y+new_h, x:x+new_w] = resized
+    return bg
+
+
+def _render_figure_to_rgb_array(figure):
+    """Render a Matplotlib Figure to an RGB uint8 numpy array."""
+    buf = io.BytesIO()
+    figure.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        return None
+    # Convert BGR(A) -> RGB
+    if img.shape[2] == 4:
+        img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
+    else:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
+
+
+def _render_steps_panel(main_window, size=(600, 400), pad_color=(255, 255, 255)):
+    """Create an RGB panel with the processing steps read from main_window controls."""
+    w, h = size
+    panel = np.full((h, w, 3), pad_color, dtype=np.uint8)
+    lines = []
+    try:
+        # source info
+        src = None
+        if getattr(main_window, 'imagePath', None) and main_window.imagePath.text().strip():
+            src = main_window.imagePath.text().strip()
+        else:
+            images_dir = main_window.imagesDir.text().strip() or './images'
+            idx = main_window.subjectSpin.value() if getattr(main_window, 'subjectSpin', None) else None
+            src = f"{images_dir}/subject{idx}.jpg" if idx is not None else images_dir
+        lines.append(f"Source: {src}")
+
+        # resize
+        sd = main_window.smallDim.text().strip() if getattr(main_window, 'smallDim', None) else ''
+        wtxt = main_window.resizeW.text().strip() if getattr(main_window, 'resizeW', None) else ''
+        htxt = main_window.resizeH.text().strip() if getattr(main_window, 'resizeH', None) else ''
+        if sd:
+            lines.append(f"Resize (small-dim): {sd}")
+        else:
+            lines.append(f"Resize width: {wtxt or 'auto'}, height: {htxt or 'auto'}")
+
+        # rotate
+        angle = main_window.angle.text().strip() if getattr(main_window, 'angle', None) else '0'
+        lines.append(f"Rotate: {angle} deg")
+
+        # negative
+        neg = main_window.chkNegative.isChecked() if getattr(main_window, 'chkNegative', None) else False
+        lines.append(f"Negative: {neg}")
+
+        # binary
+        binary = main_window.chkBinary.isChecked() if getattr(main_window, 'chkBinary', None) else False
+        bthr = main_window.binaryThresholdSlider.value() if getattr(main_window, 'binaryThresholdSlider', None) else None
+        lines.append(f"Binary: {binary}" + (f" (thr={bthr})" if bthr is not None else ""))
+
+        # timestamp
+        lines.append(f"Exported: {datetime.datetime.now().isoformat(timespec='seconds')}")
+    except Exception:
+        lines = ["(no processing metadata available)"]
+
+    # render lines with OpenCV
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.6
+    color = (20, 20, 20)  # dark text on white
+    line_height = int(22 * font_scale) + 18
+    x = 16
+    y = 32
+    for line in lines:
+        # wrap long lines
+        max_chars = 60
+        parts = [line[i:i+max_chars] for i in range(0, len(line), max_chars)]
+        for p in parts:
+            cv2.putText(panel, p, (x, y), font, font_scale, color, thickness=1, lineType=cv2.LINE_AA)
+            y += line_height
+            if y > h - 20:
+                break
+        if y > h - 20:
+            break
+
+    return panel
 
 
 def calculate_histogram(image):
@@ -72,19 +183,72 @@ class HistogramTab(QtWidgets.QWidget):
         self.plot(image, title=title, threshold=threshold)
 
     def export_histogram(self):
-        if self.current_image is None:
-            QtWidgets.QMessageBox.warning(self, "Warning", "No histogram to export.")
-            return
-        file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Export Histogram", "histogram.png",
-            "PNG Files (*.png);;JPEG Files (*.jpg);;PDF Files (*.pdf)"
-        )
-        if file_path:
+        """Export a composed image containing:
+        top-left: original image
+        top-right: processed image
+        bottom-left: histogram (this figure)
+        bottom-right: text panel with processing steps
+
+        The composed image is saved to the selected file path.
+        """
+        main_win = self.main_window
+        if main_win is None:
+            # fallback to simple figure export
+            super_export = QtWidgets.QFileDialog.getSaveFileName(
+                self, "Export Histogram", "histogram.png",
+                "PNG Files (*.png);;JPEG Files (*.jpg)"
+            )
+            file_path = super_export[0]
+            if not file_path:
+                return
             try:
                 self.figure.savefig(file_path, dpi=300, bbox_inches='tight')
                 QtWidgets.QMessageBox.information(self, "Success", f"Exported to:\n{file_path}")
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self, "Error", f"Export failed:\n{str(e)}")
+            return
+
+        if main_win._before_rgb is None and main_win._after_rgb is None:
+            QtWidgets.QMessageBox.warning(self, "Warning", "No images available to export.")
+            return
+
+        # choose save path
+        file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Export Summary Image", "summary.png",
+            "PNG Files (*.png);;JPEG Files (*.jpg)"
+        )
+        if not file_path:
+            return
+
+        try:
+            # prepare panels
+            orig = None if getattr(main_win, '_before_rgb', None) is None else main_win._before_rgb
+            proc = None if getattr(main_win, '_after_rgb', None) is None else main_win._after_rgb
+
+            # render histogram figure to RGB array
+            hist_rgb = _render_figure_to_rgb_array(self.figure)
+
+            # resize/pad each to same target panel size
+            panel_size = (640, 480)
+            p_orig = _resize_and_pad_rgb(orig, size=panel_size, pad_color=(255, 255, 255))
+            p_proc = _resize_and_pad_rgb(proc, size=panel_size, pad_color=(255, 255, 255))
+            p_hist = _resize_and_pad_rgb(hist_rgb, size=panel_size, pad_color=(255, 255, 255))
+            p_steps = _render_steps_panel(main_win, size=panel_size, pad_color=(255, 255, 255))
+
+            # compose 2x2
+            top = np.hstack([p_orig, p_proc])
+            bottom = np.hstack([p_hist, p_steps])
+            canvas = np.vstack([top, bottom])
+
+            # write out using OpenCV (BGR)
+            bgr = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
+            ok = cv2.imwrite(file_path, bgr)
+            if not ok:
+                raise IOError("OpenCV failed to write file")
+
+            QtWidgets.QMessageBox.information(self, "Success", f"Exported summary to:\n{file_path}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Export failed:\n{str(e)}")
 
     def close_tab(self):
         if self.main_window is None:
