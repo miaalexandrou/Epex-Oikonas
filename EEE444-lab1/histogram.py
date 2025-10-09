@@ -254,6 +254,13 @@ class HistogramTab(QtWidgets.QWidget):
         if self.main_window is None:
             self.close()
             return
+            
+        # Check if this is the permanent histogram tab
+        if hasattr(self.main_window, 'tabHistogram') and self.main_window.tabHistogram is self:
+            QtWidgets.QMessageBox.information(self, "Info", "This is a permanent tab and cannot be closed.")
+            return
+            
+        # Only allow closing if it's not the permanent tab
         tabs = self.main_window.centerTabs
         idx = tabs.indexOf(self)
         if idx != -1:
@@ -263,6 +270,25 @@ class HistogramTab(QtWidgets.QWidget):
             delattr(self.main_window, '_histogram_tab')
 
     def plot(self, image, title="Image Histogram", threshold=128):
+        if image is None:
+            # Handle case when no image is provided
+            self.current_image = None
+            self.figure.clear()
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, 'No Image Loaded\nLoad an image to see histogram', 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=14, color='gray')
+            ax.set_xlim([0, 255])
+            ax.set_ylim([0, 1])
+            ax.set_xlabel('Pixel Intensity')
+            ax.set_ylabel('Frequency')
+            ax.set_title(title)
+            ax.grid(True, alpha=0.3)
+            ax.set_facecolor('#f8f9fa')
+            self.figure.tight_layout()
+            self.canvas.draw()
+            return
+            
         hist_data = calculate_histogram(image)
         stats = calculate_stats(hist_data)
 
@@ -303,46 +329,27 @@ class HistogramTab(QtWidgets.QWidget):
 
 
 def show_histogram_gui(main_window, threshold=128):
-    """Show histogram for the current image inside a new tab next to 'Processed'.
-
-    If a histogram tab already exists it will be updated and selected.
+    """Update and show the permanent histogram tab.
+    
+    This function now works with the permanent histogram tab instead of creating new ones.
     """
     try:
         image = main_window._after_rgb if main_window._after_rgb is not None else main_window._before_rgb
         if image is None:
-            raise ValueError("No image loaded. Please load an image first.")
+            QtWidgets.QMessageBox.information(main_window, "Info", "No image loaded. Please load an image first.")
+            return
 
         image_type = "Grayscale" if calculate_histogram(image)['type'] == 'gray' else "RGB"
         title = f"{'Processed' if main_window._after_rgb is not None else 'Original'} Image Histogram ({image_type})"
 
-        # If a histogram tab exists, update it
-        if hasattr(main_window, '_histogram_tab') and main_window._histogram_tab is not None:
-            tab = main_window._histogram_tab
-            try:
-                tab.plot(image, title=title, threshold=threshold)
-            except Exception:
-                # if update fails, recreate the tab
-                tab = HistogramTab(image, title=title, threshold=threshold, main_window=main_window)
-                # replace existing tab
-                tabs = main_window.centerTabs
-                idx = tabs.indexOf(main_window._histogram_tab)
-                if idx != -1:
-                    tabs.removeTab(idx)
-                    tabs.insertTab(idx, tab, "Histogram")
-                main_window._histogram_tab = tab
+        # Update the permanent histogram tab
+        if hasattr(main_window, 'tabHistogram') and main_window.tabHistogram is not None:
+            main_window.tabHistogram.plot(image, title=title, threshold=threshold)
+            # Switch to histogram tab
+            main_window.centerTabs.setCurrentWidget(main_window.tabHistogram)
         else:
-            tab = HistogramTab(image, title=title, threshold=threshold, main_window=main_window)
-            # insert tab after Processed (which is index 1 if Original=0, Processed=1)
-            tabs = main_window.centerTabs
-            insert_idx = 2 if tabs.count() >= 2 else tabs.count()
-            tabs.insertTab(insert_idx, tab, "Histogram")
-            main_window._histogram_tab = tab
+            QtWidgets.QMessageBox.warning(main_window, "Warning", "Histogram tab not found.")
 
-        # make the histogram tab active
-        tabs.setCurrentWidget(main_window._histogram_tab)
-
-    except ValueError as e:
-        QtWidgets.QMessageBox.information(main_window, "Info", str(e))
     except Exception as e:
         QtWidgets.QMessageBox.critical(main_window, "Error", f"Failed to generate histogram: {str(e)}")
 

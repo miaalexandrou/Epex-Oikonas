@@ -6,7 +6,7 @@ from my_image_processing import MyProcess2
 from binary import convert_to_binary
 from zoom import ZoomHandler
 from morphology import on_apply_morphology_gui
-from histogram import show_histogram_gui
+from histogram import show_histogram_gui, HistogramTab
 from fourier import create_fourier_tab
 
 APP_TITLE = "DIP Lab — Image Studio"
@@ -188,9 +188,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.centerTabs = QtWidgets.QTabWidget()
         self.tabOriginal = QtWidgets.QWidget()
         self.tabProcessed = QtWidgets.QWidget()
+        self.tabHistogram = HistogramTab(None, title="No Image Loaded", threshold=128, main_window=self)
         self.tabFourier = create_fourier_tab(self)
         self.centerTabs.addTab(self.tabOriginal, "Original")
         self.centerTabs.addTab(self.tabProcessed, "Processed")
+        self.centerTabs.addTab(self.tabHistogram, "Histogram")
         self.centerTabs.addTab(self.tabFourier, "Fourier")
 
         # Original area
@@ -398,6 +400,8 @@ class MainWindow(QtWidgets.QMainWindow):
         pix = np_rgb_to_qpixmap(rgb, self.lblBefore.size())
         self.zoomHandlerBefore.set_pixmap(pix)
         self.centerTabs.setCurrentWidget(self.tabOriginal)
+        # Update histogram automatically
+        self.update_histogram_tab()
 
     def _parse_resize(self):
         sd = self.smallDim.text().strip()
@@ -437,6 +441,8 @@ class MainWindow(QtWidgets.QMainWindow):
             pix = np_rgb_to_qpixmap(out_rgb, self.lblAfter.size())
             self.zoomHandlerAfter.set_pixmap(pix)
             self.centerTabs.setCurrentWidget(self.tabProcessed)
+            # Update histogram automatically
+            self.update_histogram_tab()
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Σφάλμα", str(e))
 
@@ -465,8 +471,9 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def on_show_histogram(self):
         """Show histogram for the current image."""
-        # Delegate to the histogram module
-        show_histogram_gui(self)
+        # Update the permanent histogram tab and switch to it
+        self.update_histogram_tab()
+        self.centerTabs.setCurrentWidget(self.tabHistogram)
 
     def on_reset(self):
         """Reset the processed image back to the original image."""
@@ -481,6 +488,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Switch to the processed tab to show the reset image
         self.centerTabs.setCurrentWidget(self.tabProcessed)
         
+        # Update histogram automatically
+        self.update_histogram_tab()
+        
         # Optionally, reset all controls to default values
         self.resizeW.clear()
         self.resizeH.clear()
@@ -489,6 +499,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chkNegative.setChecked(False)
         self.chkBinary.setChecked(False)
         self.binaryThresholdSlider.setValue(127)
+        
+        # Update histogram if image exists
+        self.update_histogram_tab()
+
+    def update_histogram_tab(self):
+        """Update the permanent histogram tab with the current image."""
+        try:
+            image = self._after_rgb if self._after_rgb is not None else self._before_rgb
+            if image is None:
+                # Clear the histogram if no image is loaded
+                self.tabHistogram.plot(None, title="No Image Loaded", threshold=127)
+                return
+
+            from histogram import calculate_histogram
+            image_type = "Grayscale" if calculate_histogram(image)['type'] == 'gray' else "RGB"
+            title = f"{'Processed' if self._after_rgb is not None else 'Original'} Image Histogram ({image_type})"
+            threshold = self.binaryThresholdSlider.value() if hasattr(self, 'binaryThresholdSlider') else 128
+            
+            self.tabHistogram.plot(image, title=title, threshold=threshold)
+        except Exception as e:
+            print(f"Error updating histogram: {e}")
 
 # -------------------------- Run App --------------------------
 if __name__ == "__main__":
