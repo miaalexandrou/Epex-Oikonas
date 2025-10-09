@@ -371,6 +371,18 @@ def create_fourier_tab(parent):
     
     layout.addWidget(sub_tabs, 1)
     
+    # Export button at the bottom
+    grp_export = QtWidgets.QGroupBox("Export")
+    h_export = QtWidgets.QHBoxLayout(grp_export)
+    h_export.addStretch()
+    
+    btn_export = QtWidgets.QPushButton("Export Fourier Analysis")
+    btn_export.setStyleSheet("QPushButton { min-width: 200px; }")
+    h_export.addWidget(btn_export)
+    h_export.addStretch()
+    
+    layout.addWidget(grp_export)
+    
     # Store references for easy access
     tab_fourier.cmb_kind = cmb_kind
     tab_fourier.spn_d0 = spn_d0
@@ -397,6 +409,7 @@ def create_fourier_tab(parent):
     btn_highpass.clicked.connect(lambda: on_highpass_clicked(parent))
     btn_bandpass.clicked.connect(lambda: on_bandpass_clicked(parent))
     btn_notch.clicked.connect(lambda: on_notch_clicked(parent))
+    btn_export.clicked.connect(lambda: on_export_clicked(parent))
     
     return tab_fourier
 
@@ -574,3 +587,207 @@ def on_notch_clicked(parent):
         parent.tabFourier.sub_tabs.setCurrentWidget(parent.tabFourier.canvas_notch)
     except Exception as e:
         QtWidgets.QMessageBox.critical(parent, "Error", f"Notch filter failed: {str(e)}")
+
+def create_composite_image(images_dict, titles_dict, max_cols=3):
+    """Create a composite image from multiple images with titles."""
+    if not images_dict:
+        return None
+    
+    # Filter out None images
+    valid_images = {k: v for k, v in images_dict.items() if v is not None}
+    if not valid_images:
+        return None
+    
+    # Calculate grid dimensions
+    num_images = len(valid_images)
+    cols = min(max_cols, num_images)
+    rows = (num_images + cols - 1) // cols
+    
+    # Get dimensions (assume all images are similar size, use the first one as reference)
+    first_img = list(valid_images.values())[0]
+    if first_img.ndim == 2:
+        img_h, img_w = first_img.shape
+    else:
+        img_h, img_w, _ = first_img.shape
+    
+    # Add space for titles
+    title_height = 40
+    margin = 10
+    
+    # Calculate composite dimensions
+    composite_w = cols * img_w + (cols + 1) * margin
+    composite_h = rows * (img_h + title_height) + (rows + 1) * margin
+    
+    # Create white background
+    composite = np.ones((composite_h, composite_w, 3), dtype=np.uint8) * 255
+    
+    # Place images
+    for idx, (key, img) in enumerate(valid_images.items()):
+        row = idx // cols
+        col = idx % cols
+        
+        # Calculate position
+        x = margin + col * (img_w + margin)
+        y = margin + row * (img_h + title_height + margin) + title_height
+        
+        # Convert grayscale to RGB if needed
+        if img.ndim == 2:
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        else:
+            img_rgb = img
+        
+        # Resize if necessary
+        if img_rgb.shape[:2] != (img_h, img_w):
+            img_rgb = cv2.resize(img_rgb, (img_w, img_h))
+        
+        # Place image
+        composite[y:y+img_h, x:x+img_w] = img_rgb
+        
+        # Add title using OpenCV
+        title = titles_dict.get(key, key)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.6
+        color = (0, 0, 0)  # Black text
+        thickness = 1
+        
+        # Get text size and center it
+        text_size = cv2.getTextSize(title, font, font_scale, thickness)[0]
+        text_x = x + (img_w - text_size[0]) // 2
+        text_y = y - 10
+        
+        cv2.putText(composite, title, (text_x, text_y), font, font_scale, color, thickness)
+    
+    return composite
+
+def get_all_fourier_results(parent):
+    """Get all available Fourier processing results."""
+    images = {}
+    titles = {}
+    
+    # Original image
+    original = get_source_image(parent)
+    if original is not None:
+        images['original'] = original
+        titles['original'] = 'Original Image'
+    
+    # Get processed results from canvases
+    canvases = {
+        'spectrum': (parent.tabFourier.canvas_spectrum, 'Frequency Spectrum'),
+        'phase': (parent.tabFourier.canvas_phase, 'Phase-only Reconstruction'),
+        'magnitude': (parent.tabFourier.canvas_magnitude, 'Magnitude-only Reconstruction'),
+        'lowpass': (parent.tabFourier.canvas_lowpass, 'Low-pass Filtered'),
+        'highpass': (parent.tabFourier.canvas_highpass, 'High-pass Filtered'),
+        'bandpass': (parent.tabFourier.canvas_bandpass, 'Band-pass Filtered'),
+        'notch': (parent.tabFourier.canvas_notch, 'Notch Filtered'),
+    }
+    
+    for key, (canvas, title) in canvases.items():
+        if hasattr(canvas, '_pixmap') and canvas._pixmap is not None:
+            # Convert QPixmap back to numpy array
+            qimg = canvas._pixmap.toImage()
+            width = qimg.width()
+            height = qimg.height()
+            
+            # Convert QImage to numpy array
+            ptr = qimg.bits()
+            ptr.setsize(qimg.byteCount())
+            arr = np.array(ptr).reshape(height, width, 4)  # RGBA
+            # Convert RGBA to RGB
+            img_rgb = arr[:, :, :3]  # Drop alpha channel
+            
+            images[key] = img_rgb
+            titles[key] = title
+    
+    return images, titles
+
+def get_processing_summary(parent):
+    """Get a summary of the processing parameters used."""
+    summary_lines = []
+    
+    # Filter parameters
+    kind = parent.tabFourier.cmb_kind.currentText()
+    D0 = parent.tabFourier.spn_d0.value()
+    n = parent.tabFourier.spn_n.value()
+    D_low = parent.tabFourier.spn_d_low.value()
+    D_high = parent.tabFourier.spn_d_high.value()
+    notch_centers = parent.tabFourier.edt_notch.text().strip()
+    radius = parent.tabFourier.spn_radius.value()
+    apply_rgb = parent.tabFourier.chk_rgb.isChecked()
+    
+    summary_lines.append("FOURIER ANALYSIS PARAMETERS:")
+    summary_lines.append(f"Filter Type: {kind.capitalize()}")
+    summary_lines.append(f"Cutoff Frequency (D0): {D0}")
+    if kind == "butterworth":
+        summary_lines.append(f"Butterworth Order (n): {n}")
+    summary_lines.append(f"Bandpass Low (D_low): {D_low}")
+    summary_lines.append(f"Bandpass High (D_high): {D_high}")
+    summary_lines.append(f"Notch Centers: {notch_centers}")
+    summary_lines.append(f"Notch Radius: {radius}")
+    summary_lines.append(f"Apply on RGB: {'Yes' if apply_rgb else 'No'}")
+    
+    return summary_lines
+
+def create_text_image(text_lines, width=400, height=300):
+    """Create an image with text information."""
+    img = np.ones((height, width, 3), dtype=np.uint8) * 255  # White background
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.4
+    color = (0, 0, 0)  # Black text
+    thickness = 1
+    line_height = 20
+    
+    y_offset = 30
+    for line in text_lines:
+        if y_offset + line_height > height - 10:
+            break  # Don't exceed image bounds
+        cv2.putText(img, line, (10, y_offset), font, font_scale, color, thickness)
+        y_offset += line_height
+    
+    return img
+
+def on_export_clicked(parent):
+    """Handle export button click - create composite image with all Fourier analysis results."""
+    try:
+        # Get all available results
+        images, titles = get_all_fourier_results(parent)
+        
+        if not images:
+            QtWidgets.QMessageBox.information(parent, "Info", "No Fourier analysis results to export. Please run some Fourier operations first.")
+            return
+        
+        # Add processing summary as an image
+        summary_lines = get_processing_summary(parent)
+        summary_img = create_text_image(summary_lines, width=400, height=300)
+        images['summary'] = summary_img
+        titles['summary'] = 'Processing Parameters'
+        
+        # Create composite image
+        composite = create_composite_image(images, titles, max_cols=3)
+        
+        if composite is None:
+            QtWidgets.QMessageBox.warning(parent, "Warning", "Failed to create composite image.")
+            return
+        
+        # Ask user where to save
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            parent, 
+            "Export Fourier Analysis", 
+            "fourier_analysis_export.png", 
+            "PNG (*.png);;JPEG (*.jpg *.jpeg)"
+        )
+        
+        if not path:
+            return
+        
+        # Convert RGB to BGR for OpenCV and save
+        composite_bgr = cv2.cvtColor(composite, cv2.COLOR_RGB2BGR)
+        success = cv2.imwrite(path, composite_bgr)
+        
+        if success:
+            QtWidgets.QMessageBox.information(parent, "Success", f"Fourier analysis exported successfully to:\n{path}")
+        else:
+            QtWidgets.QMessageBox.critical(parent, "Error", "Failed to save the exported image.")
+            
+    except Exception as e:
+        QtWidgets.QMessageBox.critical(parent, "Error", f"Export failed: {str(e)}")
