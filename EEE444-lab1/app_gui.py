@@ -7,6 +7,7 @@ from binary import convert_to_binary
 from zoom import ZoomHandler
 from morphology import on_apply_morphology_gui
 from histogram import show_histogram_gui
+from fourier import create_fourier_tab
 
 APP_TITLE = "DIP Lab — Image Studio"
 
@@ -109,7 +110,8 @@ class MainWindow(QtWidgets.QMainWindow):
             "5. Εκτέλεση",
             "6. Αποθήκευση",
             "7. Ιστόγραμμα (προαιρετικό)",
-            "8. Binary (προαιρετικό)"
+            "8. Binary (προαιρετικό)",
+            "9. Fourier Analysis (προαιρετικό)"
         ])
         self.stepList.setFixedWidth(260)
         side.addWidget(self.stepList, 1)
@@ -186,8 +188,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.centerTabs = QtWidgets.QTabWidget()
         self.tabOriginal = QtWidgets.QWidget()
         self.tabProcessed = QtWidgets.QWidget()
+        self.tabFourier = create_fourier_tab(self)
         self.centerTabs.addTab(self.tabOriginal, "Original")
         self.centerTabs.addTab(self.tabProcessed, "Processed")
+        self.centerTabs.addTab(self.tabFourier, "Fourier")
 
         # Original area
         oLay = QtWidgets.QVBoxLayout(self.tabOriginal)
