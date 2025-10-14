@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
 from my_image_processing import MyProcess2
-from binary import convert_to_binary
+from binary import convert_to_binary, convert_to_grayscale
 from zoom import ZoomHandler
 from morphology import on_apply_morphology_gui
 from histogram import show_histogram_gui, HistogramTab
@@ -136,6 +136,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.angle = QtWidgets.QLineEdit("0")
         self.chkNegative = QtWidgets.QCheckBox("Negative")
         self.chkBinary = QtWidgets.QCheckBox("Binary") 
+        self.chkGrayscale = QtWidgets.QCheckBox("Grayscale")
 
         # Binary slider + label
         self.binaryThresholdSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -163,6 +164,7 @@ class MainWindow(QtWidgets.QMainWindow):
         form.addRow("angle (deg):", self.angle)
         form.addRow("", self.chkNegative)
         form.addRow("", binaryRow)
+        form.addRow("", self.chkGrayscale)
         side.addLayout(form)
 
         # action buttons
@@ -268,7 +270,8 @@ class MainWindow(QtWidgets.QMainWindow):
             " – width/height: μπορείτε να αφήσετε ένα κενό για διατήρηση αναλογιών.\n"
             " – angle: μοίρες περιστροφής (αριστερόστροφα).\n"
             " – Negative: αντιστρέφει τα χρώματα.\n"
-            " – Binary: μετατρέπει την εικόνα σε δυαδική (threshold=slider)."
+            " – Binary: μετατρέπει την εικόνα σε δυαδική (threshold=slider).\n"
+            " – Grayscale: μετατρέπει την εικόνα σε κλίμακα του γκρι."
         )
         info.setWordWrap(True)
         lay.addWidget(info)
@@ -437,6 +440,10 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.chkBinary.isChecked():
                 threshold = self.binaryThresholdSlider.value()
                 out_rgb = convert_to_binary(out_rgb, threshold=threshold)
+            
+            # Apply grayscale conversion if selected
+            if self.chkGrayscale.isChecked():
+                out_rgb = convert_to_grayscale(out_rgb)
             self._after_rgb = out_rgb
             pix = np_rgb_to_qpixmap(out_rgb, self.lblAfter.size())
             self.zoomHandlerAfter.set_pixmap(pix)
@@ -498,6 +505,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.angle.setText("0")
         self.chkNegative.setChecked(False)
         self.chkBinary.setChecked(False)
+        self.chkGrayscale.setChecked(False)
         self.binaryThresholdSlider.setValue(127)
         
         # Update histogram if image exists
