@@ -117,6 +117,9 @@ def apply_filter_gray(img_rgb, H_shift):
     result = np.fft.ifft2(F_ishifted)
     result = np.real(result)
     
+    # Apply log transformation
+    result = np.log(1 + np.abs(result))
+    
     # Normalize to uint8
     result = cv2.normalize(result, None, 0, 255, cv2.NORM_MINMAX)
     return result.astype(np.uint8)
@@ -139,6 +142,9 @@ def apply_filter_rgb(img_rgb, H_shift):
         F_ishifted = np.fft.ifftshift(F_filtered)
         result_channel = np.fft.ifft2(F_ishifted)
         result_channel = np.real(result_channel)
+        
+        # Apply log transformation
+        result_channel = np.log(1 + np.abs(result_channel))
         
         # Normalize to uint8
         result_channel = cv2.normalize(result_channel, None, 0, 255, cv2.NORM_MINMAX)
@@ -184,6 +190,9 @@ def phase_only_reconstruction(img_rgb):
     result = np.fft.ifft2(F_ishifted)
     result = np.real(result)
     
+    # Apply log transformation
+    result = np.log(1 + np.abs(result))
+    
     # Normalize to uint8
     result = cv2.normalize(result, None, 0, 255, cv2.NORM_MINMAX)
     return result.astype(np.uint8)
@@ -207,6 +216,9 @@ def magnitude_only_reconstruction(img_rgb):
     F_ishifted = np.fft.ifftshift(F_mag_only)
     result = np.fft.ifft2(F_ishifted)
     result = np.real(result)
+    
+    # Apply log transformation
+    result = np.log(1 + np.abs(result))
     
     # Normalize to uint8
     result = cv2.normalize(result, None, 0, 255, cv2.NORM_MINMAX)
